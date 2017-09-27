@@ -1,0 +1,23 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+namespace X;
+
+file_exists(__DIR__.'/../vendor/autoload.php')
+    ? require __DIR__.'/../vendor/autoload.php'
+    : require __DIR__.'/../../../autoload.php';
+
+use Thunder\Currenz\Utility\Utility;
+
+$data = Utility::xmlToArray(file_get_contents(__DIR__.'/../data/list_one.xml'));
+ksort($data);
+
+foreach($data as $item) {
+    echo vsprintf('%s %s %-4s %-65s | %s', [
+        $item['id'] ?? '---',
+        $item['code'] ?? '---',
+        $item['units'] ?? '----',
+        $item['name'] === 'No universal currency' ? 'N/A' : $item['name'],
+        implode(', ', $item['countries']),
+    ]).PHP_EOL;
+}

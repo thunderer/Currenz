@@ -1,0 +1,77 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+namespace X;
+
+use Thunder\Currenz\Utility\Utility;
+
+file_exists(__DIR__.'/../vendor/autoload.php')
+    ? require __DIR__.'/../vendor/autoload.php'
+    : require __DIR__.'/../../../autoload.php';
+
+$log = function(string $message) { echo sprintf('%-60s', $message).PHP_EOL; };
+$command = function(string $message) { echo sprintf('  > %-45s', $message); };
+$status = function(string $message) { echo sprintf('[%4s]', $message).PHP_EOL; };
+$writeFile = function(string $path, string $template, array $replaces) {
+    file_put_contents($path, str_replace(array_keys($replaces), array_values($replaces), $template));
+};
+
+$data = Utility::xmlToArray(file_get_contents(__DIR__.'/../data/list_one.xml'));
+ksort($data);
+
+$log('Currenz (c) 2017 Tomasz Kowalczyk.');
+$command('loading Currenz class template...');
+$currenzClassTemplate = file_get_contents(__DIR__.'/../data/currenz.tpl');
+$status(' OK ');
+
+$command('generating Currenz class...');
+$writeFile(__DIR__.'/../src/Currenz.php', $currenzClassTemplate, [
+    '<USES>' => implode("\n", array_filter(array_map(function(array $item) {
+        if(empty($item['code'])) { return ''; }
+
+        $safeCode = $item['code'] === 'TRY' ? $item['code'].'_' : $item['code'];
+
+        return 'use Thunder\\Currenz\\Currency\\'.$safeCode.';';
+    }, $data))),
+    '<METHODS>' => implode("\n", array_filter(array_map(function(string $code) {
+        return $code ? sprintf('  * @method static Currency %s()', $code) : null;
+    }, array_keys($data)))),
+    '<NAMED>' => implode("\n", array_filter(array_map(function(array $item) {
+        $safeCode = $item['code'] === 'TRY' ? $item['code'].'_' : $item['code'];
+
+        return $item['code'] ? vsprintf('    public static function %s(): %s { return new %s(); }', [$safeCode, $safeCode, $safeCode]) : null;
+    }, $data))),
+    '<CURRENCIES>' => var_export($data, true),
+]);
+$status(' OK ');
+
+$command('loading currency class template...');
+$currencyClassTemplate = file_get_contents(__DIR__.'/../data/currency.tpl');
+$status(' OK ');
+$command('generating currency classes...');
+$index = 0;
+echo "\n    [ ";
+foreach($data as $code => $item) {
+    if(empty($code)) {
+        continue;
+    }
+    echo $code.' ';
+
+    $safeCode = $item['code'] === 'TRY' ? $item['code'].'_' : $item['code'];
+    $writeFile(__DIR__.'/../src/Currency/'.$safeCode.'.php', $currencyClassTemplate, [
+        '<CLASS>' => $safeCode,
+        '<NAME>' => $item['name'],
+        '<CODE>' => $item['code'],
+        '<UNITS>' => $item['units'] === 'N.A.' ? 'null' : (int)$item['units'],
+        '<COUNTRIES>' => implode('\', \'', array_map(function(string $item) { return str_replace('\'', '\\\'', $item); }, $item['countries'])),
+        '<ID>' => $item['id'],
+    ]);
+    $index++;
+    if($index > 0 && $index % 12 === 0) {
+        echo "]\n    [ ";
+    }
+}
+echo "]\n";
+$command('all classes generated...');
+$status(' OK ');
+echo "\n\n";
